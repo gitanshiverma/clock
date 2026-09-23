@@ -1,5 +1,5 @@
 ⏳ TIMEBLOCKS - Cybernetic Focus Dial
-https://i.imgur.com/your-image-link-here.png <!-- Placeholder for the provided image -->
+
 
 TIMEBLOCKS is a web-based productivity and time-management application designed to help users achieve deep focus using time-blocking techniques. Wrapped in a sleek, cyberpunk-inspired interface with lo-fi ambient visuals, it turns productivity into a focused, gamified experience.
 
@@ -41,7 +41,7 @@ Installation
 Clone the repository:
 
 bash
-git clone https://github.com/yourusername/timeblocks.git
+git clone https://github.com/gitanshiverma/clock.git
 Navigate to the project directory:
 
 bash
@@ -54,7 +54,7 @@ Start the development server:
 
 bash
 npm run dev
-Open your browser and navigate to http://localhost:3000 (or your configured port).
+Open your browser and navigate to http://localhost:3000/
 
 🎮 How to Use
 Set a Block: Click on the "Study Blocks" tab to define your current task and duration.
