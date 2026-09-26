@@ -49,4 +49,36 @@ export interface SoundSettings {
   alertType: 'siren' | 'alarm' | 'chime';
 }
 
+export type BackgroundVideoOption =
+  | 'study_01'
+  | 'study_02'
+  | 'study_03'
+  | 'study_04'
+  | 'coding'
+  | 'dark'
+  | 'music'
+  | 'spring'
+  | 'rain'
+  | 'wheel';
+
+export interface BackgroundSettings {
+  video: BackgroundVideoOption;
+  clockPageOnly: boolean;
+  brightness: number; // 0.1 to 1.0 (overlay dark level: 0 = dark, 1 = bright)
+  motion3D: boolean;
+  motionIntensity: number; // 0.2 to 2.0
+  particlesEnabled: boolean;
+}
+
+export interface Clock3DSettings {
+  positionX: number; // -4 to 4
+  positionY: number; // -4 to 4
+  positionZ: number; // -5 to 5
+  scale: number;     // 0.5 to 1.6
+  rotationZ: number; // -180 to 180 degrees
+  cameraPreset: 'cyber' | 'front' | 'top' | 'free';
+  isLocked: boolean;
+}
+
 export type ActivePage = 'clock' | 'study' | 'streak' | 'calendar';
+

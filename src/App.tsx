@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ActivePage, TaskBlock, StreakData, DayActivity, SoundSettings } from './types';
+import { ActivePage, TaskBlock, StreakData, DayActivity, SoundSettings, BackgroundSettings, Clock3DSettings } from './types';
 import {
   getStoredTasks,
   saveStoredTasks,
@@ -9,6 +9,10 @@ import {
   saveStoredCalendar,
   getStoredSoundSettings,
   saveStoredSoundSettings,
+  getStoredBackgroundSettings,
+  saveStoredBackgroundSettings,
+  getStoredClock3DSettings,
+  saveStoredClock3DSettings,
   recordTaskCompletion,
   generateInitialTasks,
   generateInitialCalendarActivity,
@@ -17,6 +21,7 @@ import {
   formatTime12h,
 } from './utils/storage';
 import { soundManager } from './utils/audio';
+import { RainSceneBackground } from './components/background/RainSceneBackground';
 import { Navbar } from './components/layout/Navbar';
 import { ClockPage } from './components/clock/ClockPage';
 import { Clock3DCanvas } from './components/clock/Clock3D';
@@ -36,6 +41,12 @@ export const App: React.FC = () => {
   const [soundSettings, setSoundSettings] = useState<SoundSettings>(() =>
     getStoredSoundSettings()
   );
+  const [backgroundSettings, setBackgroundSettings] = useState<BackgroundSettings>(() =>
+    getStoredBackgroundSettings()
+  );
+  const [clockSettings, setClockSettings] = useState<Clock3DSettings>(() =>
+    getStoredClock3DSettings()
+  );
   const [alertTask, setAlertTask] = useState<TaskBlock | null>(null);
   const [resetKey, setResetKey] = useState<number>(0);
 
@@ -45,6 +56,16 @@ export const App: React.FC = () => {
     soundManager.setVolume(soundSettings.volume);
     saveStoredSoundSettings(soundSettings);
   }, [soundSettings]);
+
+  // Sync background settings
+  useEffect(() => {
+    saveStoredBackgroundSettings(backgroundSettings);
+  }, [backgroundSettings]);
+
+  // Sync 3D clock settings
+  useEffect(() => {
+    saveStoredClock3DSettings(clockSettings);
+  }, [clockSettings]);
 
   // Persist tasks whenever changed
   useEffect(() => {
@@ -214,6 +235,8 @@ export const App: React.FC = () => {
     setStreakData(fresh.streak);
     setCalendarData(fresh.calendar);
     setSoundSettings(fresh.sound);
+    setBackgroundSettings(fresh.background);
+    setClockSettings(fresh.clock3D);
     triggeredTaskIdsRef.current.clear();
     setAlertTask(null);
     setResetKey((k) => k + 1);
@@ -222,28 +245,48 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-transparent text-slate-100 flex flex-col selection:bg-neon-cyan/30 selection:text-neon-cyan relative overflow-hidden">
-      {/* Persistent 3D Background with Rain Scene; Clock Dial only shown on 3D Clock page */}
+      {/* Persistent 3D Background Scene; Clock Dial only shown on 3D Clock page */}
       <div
         className={`fixed inset-0 z-0 select-none ${
           activePage === 'clock' ? 'pointer-events-auto' : 'pointer-events-none'
         }`}
         style={{ minHeight: '100vh', width: '100vw' }}
       >
+        {/* Hardware-Accelerated Video Backdrop */}
+        <RainSceneBackground videoOption={backgroundSettings.video} />
+
+        {/* Transparent 3D Canvas Overlay for Clock Face */}
         <Clock3DCanvas
           tasks={tasks}
           simulatedTime={null}
-          cameraPreset="cyber"
-          isLocked={activePage !== 'clock'}
+          cameraPreset={clockSettings.cameraPreset}
+          isLocked={activePage !== 'clock' || clockSettings.isLocked}
           resetKey={resetKey}
           filterMode="next12h"
           showClock={activePage === 'clock'}
+          clockSettings={clockSettings}
+          setClockSettings={setClockSettings}
+          backgroundSettings={backgroundSettings}
+        />
+        {/* Dynamic dimming overlay based on user brightness setting */}
+        <div
+          className="absolute inset-0 pointer-events-none transition-opacity duration-300"
+          style={{
+            backgroundColor: `rgba(0, 0, 0, ${Math.max(0, 1 - backgroundSettings.brightness)})`,
+          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/25 pointer-events-none" />
       </div>
 
-      {/* Subtle readability veil when viewing overlay pages */}
+      {/* Background theme handling for non-clock pages if clockPageOnly is active */}
       {activePage !== 'clock' && (
-        <div className="fixed inset-0 pointer-events-none bg-black/20 backdrop-blur-[1px] z-0 transition-opacity duration-300" />
+        <div
+          className={`fixed inset-0 pointer-events-none z-0 transition-all duration-300 ${
+            backgroundSettings.clockPageOnly
+              ? 'bg-slate-950/92 backdrop-blur-lg'
+              : 'bg-black/45 backdrop-blur-[2px]'
+          }`}
+        />
       )}
 
       {/* Top Cyber Navigation Bar */}
@@ -257,7 +300,7 @@ export const App: React.FC = () => {
       />
 
       {/* Main Page Routing Container with Transitions */}
-      <main className="flex-1 relative z-10 overflow-x-hidden">
+      <main className="flex-1 relative z-10 overflow-x-hidden pointer-events-none">
         <AnimatePresence mode="wait">
           {activePage === 'clock' && (
             <motion.div
@@ -266,13 +309,17 @@ export const App: React.FC = () => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.25 }}
-              className="h-full"
+              className="h-full pointer-events-none"
             >
               <ClockPage
                 tasks={tasks}
                 setActivePage={setActivePage}
                 onAddTask={handleAddTask}
                 triggerTaskAlert={triggerTaskAlert}
+                backgroundSettings={backgroundSettings}
+                setBackgroundSettings={setBackgroundSettings}
+                clockSettings={clockSettings}
+                setClockSettings={setClockSettings}
               />
             </motion.div>
           )}
@@ -284,6 +331,7 @@ export const App: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25 }}
+              className="pointer-events-auto"
             >
               <StudyBlockPage
                 tasks={tasks}
@@ -302,6 +350,7 @@ export const App: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25 }}
+              className="pointer-events-auto"
             >
               <StreakPage
                 streakData={streakData}
@@ -317,6 +366,7 @@ export const App: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
               transition={{ duration: 0.25 }}
+              className="pointer-events-auto"
             >
               <CalendarPage
                 calendarData={calendarData}

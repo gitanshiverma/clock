@@ -33,6 +33,20 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [timeStr, setTimeStr] = useState<string>('');
   const [periodStr, setPeriodStr] = useState<string>('');
   const [showResetConfirm, setShowResetConfirm] = useState<boolean>(false);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Listen to native fullscreen changes to hide Navbar when in fullscreen
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
 
   useEffect(() => {
     const updateTime = () => {
@@ -50,6 +64,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  if (isFullscreen) {
+    return null;
+  }
 
   const toggleSound = () => {
     const next = !soundSettings.enabled;

@@ -2,7 +2,7 @@ import React, { useRef, useMemo, Suspense, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { TaskBlock } from '../../types';
+import { TaskBlock, BackgroundSettings, Clock3DSettings } from '../../types';
 import { RainEnvironmentScene } from '../background/RainSceneBackground';
 
 export type TaskFilterMode = 'next12h' | 'am' | 'pm' | 'all';
@@ -486,14 +486,18 @@ export interface Clock3DProps {
   simulatedTime?: Date | null;
   filterMode?: TaskFilterMode;
   showClock?: boolean;
+  clockSettings?: Clock3DSettings;
+  backgroundSettings?: BackgroundSettings;
 }
 
-// Main 3D Scene Assembly with Dynamic Rainy Street Environment
+// Main 3D Scene Assembly with Dynamic Video Environment
 export const Clock3D: React.FC<Clock3DProps> = ({
   tasks,
   simulatedTime,
   filterMode = 'next12h',
   showClock = true,
+  clockSettings,
+  backgroundSettings,
 }) => {
   const [liveDate, setLiveDate] = React.useState<Date>(new Date());
 
@@ -505,10 +509,19 @@ export const Clock3D: React.FC<Clock3DProps> = ({
     }
   });
 
+  const posX = clockSettings?.positionX ?? 0;
+  const posY = clockSettings?.positionY ?? 0;
+  const posZ = clockSettings?.positionZ ?? 0;
+  const scale = clockSettings?.scale ?? 1.0;
+  const rotZ = ((clockSettings?.rotationZ ?? 0) * Math.PI) / 180;
+
   return (
     <group position={[0, 0, 0]}>
-      {/* 3D Rain Video Environment Scene with Rain Particles & Atmospheric Lighting */}
-      <RainEnvironmentScene />
+      {/* 3D Video Environment Scene with Particles & Atmospheric Lighting */}
+      <RainEnvironmentScene
+        videoOption={backgroundSettings?.video || 'rain'}
+        particlesEnabled={backgroundSettings?.particlesEnabled ?? true}
+      />
 
       <ambientLight intensity={1.15} color="#ffffff" />
       <directionalLight position={[3, 6, 7]} intensity={1.2} color="#fffdfa" />
@@ -516,7 +529,11 @@ export const Clock3D: React.FC<Clock3DProps> = ({
       <pointLight position={[0, 0, 4]} intensity={0.6} color="#fffbf2" distance={10} />
 
       {showClock && (
-        <group>
+        <group
+          position={[posX, posY, posZ]}
+          scale={[scale, scale, scale]}
+          rotation={[0, 0, rotZ]}
+        >
           <ClockBody tasks={tasks} now={liveDate} filterMode={filterMode} />
           <ClockHands now={liveDate} />
         </group>
@@ -525,12 +542,14 @@ export const Clock3D: React.FC<Clock3DProps> = ({
   );
 };
 
-// Camera & Orbit Controller with Position Locking and Reset
+// Camera & Orbit Controller with Cursor Motion & Mouse Controls
 const CameraController: React.FC<{
-  cameraPreset: 'front' | 'cyber' | 'top';
+  cameraPreset: 'cyber' | 'front' | 'top' | 'free';
   isLocked: boolean;
   resetKey: number;
-}> = ({ cameraPreset, isLocked, resetKey }) => {
+  motion3D?: boolean;
+  motionIntensity?: number;
+}> = ({ cameraPreset, isLocked, resetKey, motion3D = true, motionIntensity = 1.0 }) => {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
 
@@ -538,6 +557,7 @@ const CameraController: React.FC<{
     let targetPos: [number, number, number] = [0.5, -0.8, 8.6];
     if (cameraPreset === 'front') targetPos = [0, 0, 9.0];
     else if (cameraPreset === 'top') targetPos = [0, 8.2, 3];
+    else if (cameraPreset === 'free') targetPos = [0.5, -0.8, 8.6];
 
     camera.position.set(...targetPos);
     camera.lookAt(0, 0, 0);
@@ -548,42 +568,125 @@ const CameraController: React.FC<{
     }
   }, [cameraPreset, resetKey, camera]);
 
+  useFrame(() => {
+    // Keep camera completely static at all times
+    const baseX = cameraPreset === 'front' ? 0 : 0.5;
+    const baseY = cameraPreset === 'front' ? 0 : -0.8;
+    camera.position.x = baseX;
+    camera.position.y = baseY;
+    camera.lookAt(0, 0, 0);
+  });
+
   return (
     <OrbitControls
       ref={controlsRef}
-      enablePan={!isLocked}
-      enableZoom={!isLocked}
-      enableRotate={!isLocked}
-      minDistance={3.5}
-      maxDistance={16}
-      maxPolarAngle={Math.PI / 1.7}
+      enableRotate={!isLocked && cameraPreset === 'free'}
+      enablePan={!isLocked && cameraPreset === 'free'}
+      enableZoom={false}
+      mouseButtons={{
+        LEFT: undefined as any, // Reserve Left-Click for direct clock position dragging
+        MIDDLE: THREE.MOUSE.DOLLY,
+        RIGHT: THREE.MOUSE.ROTATE,
+      }}
       dampingFactor={0.05}
     />
   );
 };
 
 export interface Clock3DCanvasProps extends Clock3DProps {
-  cameraPreset?: 'front' | 'cyber' | 'top';
+  cameraPreset?: 'cyber' | 'front' | 'top' | 'free';
   isLocked?: boolean;
   resetKey?: number;
   filterMode?: TaskFilterMode;
   showClock?: boolean;
+  clockSettings?: Clock3DSettings;
+  setClockSettings?: React.Dispatch<React.SetStateAction<Clock3DSettings>>;
+  backgroundSettings?: BackgroundSettings;
 }
 
-// Canvas Wrapper with OrbitControls & Fix Position support
+// Canvas Wrapper with Direct Mouse Drag Position & Scroll Wheel Scale
 export const Clock3DCanvas: React.FC<Clock3DCanvasProps> = ({
   tasks,
   simulatedTime,
-  cameraPreset = 'cyber',
+  cameraPreset,
   isLocked = false,
   resetKey = 0,
   filterMode = 'next12h',
   showClock = true,
+  clockSettings,
+  setClockSettings,
+  backgroundSettings,
 }) => {
+  const activePreset = cameraPreset || clockSettings?.cameraPreset || 'cyber';
+  const activeIsLocked = isLocked || (clockSettings?.isLocked ?? false);
+
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{ pointerX: number; pointerY: number; posX: number; posY: number }>({
+    pointerX: 0,
+    pointerY: 0,
+    posX: 0,
+    posY: 0,
+  });
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (activeIsLocked || !setClockSettings || e.button !== 0) return;
+    isDraggingRef.current = true;
+    dragStartRef.current = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      posX: clockSettings?.positionX ?? 0,
+      posY: clockSettings?.positionY ?? 0,
+    };
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current || !setClockSettings) return;
+    const viewportWidth = window.innerWidth || 1200;
+    const viewportHeight = window.innerHeight || 800;
+
+    const scaleX = 16 / viewportWidth;
+    const scaleY = 10 / viewportHeight;
+
+    const deltaX = (e.clientX - dragStartRef.current.pointerX) * scaleX;
+    const deltaY = (e.clientY - dragStartRef.current.pointerY) * scaleY;
+
+    setClockSettings((prev) => ({
+      ...prev,
+      positionX: Math.max(-6, Math.min(6, parseFloat((dragStartRef.current.posX + deltaX).toFixed(2)))),
+      positionY: Math.max(-6, Math.min(6, parseFloat((dragStartRef.current.posY - deltaY).toFixed(2)))),
+    }));
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (activeIsLocked || !setClockSettings) return;
+    const delta = e.deltaY < 0 ? 0.06 : -0.06;
+    setClockSettings((prev) => ({
+      ...prev,
+      scale: Math.max(0.4, Math.min(2.0, parseFloat((prev.scale + delta).toFixed(2)))),
+    }));
+  };
+
   return (
     <div
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onWheel={handleWheel}
       className={`w-full h-full relative select-none ${
-        isLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+        activeIsLocked ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
       }`}
       style={{ minHeight: '100%', width: '100%', height: '100%' }}
     >
@@ -591,7 +694,7 @@ export const Clock3DCanvas: React.FC<Clock3DCanvasProps> = ({
         camera={{ position: [0.5, -0.8, 8.6], fov: 46 }}
         gl={{
           antialias: true,
-          alpha: false,
+          alpha: true,
           powerPreference: 'high-performance',
         }}
         className="w-full h-full"
@@ -603,11 +706,15 @@ export const Clock3DCanvas: React.FC<Clock3DCanvasProps> = ({
             simulatedTime={simulatedTime}
             filterMode={filterMode}
             showClock={showClock}
+            clockSettings={clockSettings}
+            backgroundSettings={backgroundSettings}
           />
           <CameraController
-            cameraPreset={cameraPreset}
-            isLocked={isLocked}
+            cameraPreset={activePreset}
+            isLocked={activeIsLocked}
             resetKey={resetKey}
+            motion3D={backgroundSettings?.motion3D}
+            motionIntensity={backgroundSettings?.motionIntensity}
           />
         </Suspense>
       </Canvas>

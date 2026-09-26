@@ -1,10 +1,12 @@
-import { TaskBlock, StreakData, DayActivity, SoundSettings, Badge } from '../types';
+import { TaskBlock, StreakData, DayActivity, SoundSettings, Badge, BackgroundSettings, Clock3DSettings } from '../types';
 
 const STORAGE_KEYS = {
   TASKS: 'timeblocks_tasks_v2',
   STREAK: 'timeblocks_streak',
   CALENDAR: 'timeblocks_calendar',
   SOUND: 'timeblocks_sound_settings',
+  BACKGROUND: 'timeblocks_background_settings_v1',
+  CLOCK3D: 'timeblocks_clock3d_settings_v1',
 };
 
 const DEFAULT_BADGES: Badge[] = [
@@ -295,6 +297,67 @@ export function saveStoredSoundSettings(settings: SoundSettings): void {
   }
 }
 
+export const DEFAULT_BACKGROUND_SETTINGS: BackgroundSettings = {
+  video: 'rain',
+  clockPageOnly: true,
+  brightness: 0.85,
+  motion3D: true,
+  motionIntensity: 1.0,
+  particlesEnabled: true,
+};
+
+export function getStoredBackgroundSettings(): BackgroundSettings {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.BACKGROUND);
+    if (!stored) {
+      saveStoredBackgroundSettings(DEFAULT_BACKGROUND_SETTINGS);
+      return DEFAULT_BACKGROUND_SETTINGS;
+    }
+    return { ...DEFAULT_BACKGROUND_SETTINGS, ...JSON.parse(stored) };
+  } catch {
+    return DEFAULT_BACKGROUND_SETTINGS;
+  }
+}
+
+export function saveStoredBackgroundSettings(settings: BackgroundSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.BACKGROUND, JSON.stringify(settings));
+  } catch (e) {
+    console.error('Failed to save background settings', e);
+  }
+}
+
+export const DEFAULT_CLOCK3D_SETTINGS: Clock3DSettings = {
+  positionX: 0,
+  positionY: 0,
+  positionZ: 0,
+  scale: 1.0,
+  rotationZ: 0,
+  cameraPreset: 'cyber',
+  isLocked: false,
+};
+
+export function getStoredClock3DSettings(): Clock3DSettings {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.CLOCK3D);
+    if (!stored) {
+      saveStoredClock3DSettings(DEFAULT_CLOCK3D_SETTINGS);
+      return DEFAULT_CLOCK3D_SETTINGS;
+    }
+    return { ...DEFAULT_CLOCK3D_SETTINGS, ...JSON.parse(stored) };
+  } catch {
+    return DEFAULT_CLOCK3D_SETTINGS;
+  }
+}
+
+export function saveStoredClock3DSettings(settings: Clock3DSettings): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.CLOCK3D, JSON.stringify(settings));
+  } catch (e) {
+    console.error('Failed to save clock 3d settings', e);
+  }
+}
+
 // Records completion of a task into streak and daily activity
 export function recordTaskCompletion(task: TaskBlock) {
   const today = formatDate(new Date());
@@ -364,6 +427,8 @@ export function resetAllStorage(): {
   streak: StreakData;
   calendar: Record<string, DayActivity>;
   sound: SoundSettings;
+  background: BackgroundSettings;
+  clock3D: Clock3DSettings;
 } {
   try {
     localStorage.clear();
@@ -392,5 +457,11 @@ export function resetAllStorage(): {
   const sound: SoundSettings = { enabled: true, volume: 0.7, alertType: 'siren' };
   saveStoredSoundSettings(sound);
 
-  return { tasks, streak, calendar, sound };
+  const background = DEFAULT_BACKGROUND_SETTINGS;
+  saveStoredBackgroundSettings(background);
+
+  const clock3D = DEFAULT_CLOCK3D_SETTINGS;
+  saveStoredClock3DSettings(clock3D);
+
+  return { tasks, streak, calendar, sound, background, clock3D };
 }
