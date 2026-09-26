@@ -30,7 +30,7 @@ Main Canvas: Houses the large, highly visible analog clock with a distinct pink 
 🚀 Getting Started
 (Note: Adjust these instructions based on your actual tech stack)
 
-Deployment link: https://clock-jgfygincm-error-422.vercel.app/
+Deployment link: https://clock-7ra67vwrj-error-422.vercel.app/
 
 Prerequisites
 Node.js (v16.x or higher)
